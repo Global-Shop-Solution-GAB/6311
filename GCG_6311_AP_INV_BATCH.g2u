@@ -1,0 +1,408 @@
+Program.Sub.Preflight.Start
+V.Global.sBranch.Declare(String,"")
+V.Global.sBatch.Declare(String,"")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+
+F.Intrinsic.Control.If(V.Ambient.IsInTaskScheduler)
+	F.Intrinsic.Control.CallSub(Check_View)
+	F.Intrinsic.Control.CallSub(Get_Branch)
+	F.Intrinsic.Control.CallSub(Get_Data)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6311_AP_INV_BATCH.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.Control.CallSub(ErrorMessage, "ErrorNumber", V.Ambient.ErrorNumber, "ErrorDescription", V.Ambient.ErrorDescription, "Subroutine", V.Ambient.CurrentSubroutine, "WRITE_LOG_FILE", True, "Project", "6311", "Task", "GCG_6311_AP_INV_BATCH", "Unattended", True, "ProjectTitle", "6311 Steel Vendor Invoice Integration", "Callback", "Exit")
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Get_Data.Start
+F.Intrinsic.Control.SetErrorHandler("Get_Data_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sSql.Declare(String,"")
+V.Local.sMap.Declare(String,"")
+V.Local.sType.Declare(String,"")
+V.Local.i.Declare(Long,0)
+V.Local.sInvDate.Declare(String,"")
+V.Local.sInvDueDate.Declare(String,"")
+V.Local.sBatchDate.Declare(String,"")
+V.Local.sRet.Declare(String,"")
+V.Local.sFilePath.Declare(String,"")
+V.Local.sDate.Declare(String,"")
+V.Local.sParams.Declare(String,"")
+V.Local.sPOLINE.Declare(String,"")
+V.Local.iRet.Declare(Long,0)
+
+F.Intrinsic.String.Format(V.Ambient.Date,"MMDDYY",V.Local.sBatchDate)
+F.Intrinsic.String.Format(V.Ambient.Date,"YYYYMMDD",V.Local.sDate)
+
+V.Local.sMap.Set("BATCHDATE*!*VENDOR*!*INVOICE*!*INVOICE_DATE*!*INVOICE_DUE_DATE*!*BALANCE_DUE*!*GL_ACCOUNT_LINE*!*TAXABLE*!*TAX_CODE*!*BOOK_USE_TAX*!*JOB*!*SUFFIX*!*SEQUENCE*!*BRANCH*!*PURCHASE_ORDER*!*PO_LINE*!*UM_PURCHASING*!*RECEIVER_NO*!*QTY*!*UNIT_PRICE*!*BUYER*!*VOUCHER*!*VAT_RULE*!*PARTLOCATION*!*COST_SOURCE*!*INVOICE_NOTES")
+V.Local.sType.Set("String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String*!*String")
+
+F.Data.DataTable.CreateFromString("BatchPost",V.Local.sType,V.Local.sMap,V.Local.sType,"*!*",V.Ambient.NewLine,True)
+F.Data.DataTable.DeleteRow("BatchPost")
+F.Data.DataTable.AcceptChanges("BatchPost")
+
+V.Local.sSql.Set("Select A.VENDOR, A.INVOICE, A.INVOICE_DATE, A.INVOICE_DUE_DATE, A.BALANCE_DUE, C.GL_ACCOUNT, C.TAXABLE, C.TAX_CODE, C.BOOK_USE_TAX, D.JOB, D.SUFFIX, D.SEQUENCE, B.BRANCH, A.PURCHASE_ORDER, A.PO_LINE, D.UM_PURCHASING, A.RECEIVER_NO, A.QTY, A.UNIT_PRICE, B.BUYER, '' as VOUCHER, C.VAT_RULE, ' ' as PARTLOCATION, D.COST_SOURCE, A.INVOICE_NOTES, A.UPLOADED From GCG_6311_AP_INV_BTCH A LEFT JOIN V_PO_HEADER B ON A.PURCHASE_ORDER = B.PURCHASE_ORDER LEFT JOIN V_PO_RECEIVER C ON A.PURCHASE_ORDER = C.PURCHASE_ORDER and A.RECEIVER_NO = C.RECEIVER_NO JOIN V_PO_LINES D ON C.PURCHASE_ORDER = D.PURCHASE_ORDER and C.PO_LINE4 = D.RECORD_NO Where A.UPLOADED = 0;")
+'V.Local.sSql.Set("Select A.VENDOR, A.INVOICE, A.INVOICE_DATE, A.INVOICE_DUE_DATE, A.BALANCE_DUE, C.GL_ACCOUNT, C.TAXABLE, C.TAX_CODE, C.BOOK_USE_TAX, D.JOB, D.SUFFIX, D.SEQUENCE, B.BRANCH, A.PURCHASE_ORDER, C.PO_LINE, D.UM_PURCHASING, A.RECEIVER_NO, A.QTY, A.UNIT_PRICE, B.BUYER, '' as VOUCHER, C.VAT_RULE, ' ' as PARTLOCATION, D.COST_SOURCE, A.INVOICE_NOTES, A.UPLOADED From GCG_6311_AP_INV_BTCH A LEFT JOIN V_PO_HEADER B ON A.PURCHASE_ORDER = B.PURCHASE_ORDER LEFT JOIN V_PO_RECEIVER C ON A.PURCHASE_ORDER = C.PURCHASE_ORDER and A.RECEIVER_NO = C.RECEIVER_NO JOIN V_PO_LINES D ON C.PURCHASE_ORDER = D.PURCHASE_ORDER and C.PO_LINE4 = D.RECORD_NO Where A.UPLOADED = 0;")
+
+F.ODBC.Connection!Con.OpenCompanyConnection
+F.Data.DataTable.CreateFromSQL("Batch","con",v.Local.sSql,True)
+F.ODBC.Connection!con.Close
+
+F.Data.DataTable.AddColumn("Batch","BatchDate",String,"") 
+
+F.Data.DataView.Create("BATCH", "VBatch", 22, "", "")
+
+F.Intrinsic.Control.If(V.DataView.Batch!VBatch.RowCount--,<>,-1)
+	F.Intrinsic.Control.For(V.Local.i,0,V.DataView.Batch!VBatch.RowCount--,1)
+		F.Intrinsic.String.Format(V.DataView.Batch!VBatch(V.Local.i).INVOICE_DATE!FieldVal,"MMDDYY",V.Local.sInvDate)
+		F.Intrinsic.String.Format(V.DataView.Batch!VBatch(V.Local.i).INVOICE_DUE_DATE!FieldVal,"MMDDYY",V.Local.sInvDueDate)
+		F.Intrinsic.String.RPad(V.DataView.Batch!VBatch(V.Local.i).PO_LINE!FieldValTrim,"0",4,V.Local.sPOLINE)
+		F.Data.DataTable.AddRow("BatchPost","BATCHDATE",V.Local.sBatchDate,"VENDOR",V.DataView.Batch!VBatch(V.Local.i).VENDOR!FieldValTrim,"INVOICE",V.DataView.Batch!VBatch(V.Local.i).INVOICE!FieldValTrim,"INVOICE_DATE",V.Local.sInvDate,"INVOICE_DUE_DATE",V.Local.sInvDueDate,"BALANCE_DUE",V.DataView.Batch!VBatch(V.Local.i).BALANCE_DUE!FieldVal,"GL_ACCOUNT_LINE",V.DataView.Batch!VBatch(V.Local.i).GL_ACCOUNT!FieldValTrim,"TAXABLE",V.DataView.Batch!VBatch(V.Local.i).TAXABLE!FieldVal,"TAX_CODE",V.DataView.Batch!VBatch(V.Local.i).TAX_CODE!FieldValTrim,"BOOK_USE_TAX",V.DataView.Batch!VBatch(V.Local.i).BOOK_USE_TAX!FieldVal,"JOB",V.DataView.Batch!VBatch(V.Local.i).JOB!FieldValTrim,"SUFFIX",V.DataView.Batch!VBatch(V.Local.i).SUFFIX!FieldValTrim,"SEQUENCE",V.DataView.Batch!VBatch(V.Local.i).SEQUENCE!FieldValTrim,"BRANCH",V.Global.sBranch,"PURCHASE_ORDER",V.DataView.Batch!VBatch(V.Local.i).PURCHASE_ORDER!FieldValTrim,"PO_LINE",V.Local.sPOLINE,"UM_PURCHASING",V.DataView.Batch!VBatch(V.Local.i).UM_PURCHASING!FieldValTrim,"RECEIVER_NO",V.DataView.Batch!VBatch(V.Local.i).RECEIVER_NO!FieldValTrim,"QTY",V.DataView.Batch!VBatch(V.Local.i).QTY!FieldVal,"UNIT_PRICE",V.DataView.Batch!VBatch(V.Local.i).UNIT_PRICE!FieldVal,"BUYER",V.DataView.Batch!VBatch(V.Local.i).BUYER!FieldValTrim,"VOUCHER",V.DataView.Batch!VBatch(V.Local.i).VOUCHER!FieldValTrim,"VAT_RULE",V.DataView.Batch!VBatch(V.Local.i).VAT_RULE!FieldValTrim,"PARTLOCATION",V.DataView.Batch!VBatch(V.Local.i).PARTLOCATION!FieldValTrim,"COST_SOURCE",V.DataView.Batch!VBatch(V.Local.i).COST_SOURCE!FieldValTrim,"INVOICE_NOTES",V.DataView.Batch!VBatch(V.Local.i).INVOICE_NOTES!FieldValTrim)
+	F.Intrinsic.Control.Next(V.Local.i)
+	F.Data.DataView.Create("BatchPost","VPost",22,"","")
+	F.Data.DataView.ToString("BatchPost", "VPost", V.Local.sMap, "*!*", V.Ambient.NewLine, V.Local.sRet)
+	F.Intrinsic.String.Build("{0}\APBATCH_INVACR{1}.txt",V.Caller.FilesDir,"NA",V.Local.sFilePath)
+	F.Intrinsic.File.String2File(V.Local.sFilePath,V.Local.sRet)
+	F.Intrinsic.Control.CallSub(Get_Batch)
+
+	F.Intrinsic.String.Build("APBATCH_INVACR{0}.txt!*!{1}!*!{2}!*!{3}","NA",V.Caller.User,V.Global.sBatch,V.Local.sDate,V.Local.sParams)
+	F.Global.General.CallWrapperSync(2110,V.Local.sParams)
+	F.Intrinsic.UI.Sleep(5)
+	F.Data.DataTable.Close("BatchPost")
+	
+	F.ODBC.Connection!Con.OpenCompanyConnection
+	
+	F.Intrinsic.String.Build("Select Batch From AP_OPEN_BATCHES Where Batch = '{0}'",V.Global.sBatch,V.Local.sSql)
+	F.ODBC.Connection!con.ExecuteAndReturn(V.Local.sSql,V.Local.sRet)
+
+	F.Intrinsic.Control.If(V.Local.sRet.Trim,<>,"")
+		F.Data.DataTable.SetValue("Batch",-1,"UPLOADED",True)
+		F.Data.DataTable.SaveToDB("Batch","con","GCG_6311_AP_INV_BTCH","VENDOR*!*INVOICE*!*PURCHASE_ORDER*!*RECEIVER_NO",256,"VENDOR@!@VENDOR*!*INVOICE@!@INVOICE*!*PURCHASE_ORDER@!@PURCHASE_ORDER*!*RECEIVER_NO@!@RECEIVER_NO*!*UPLOADED@!@UPLOADED")
+	F.Intrinsic.Control.EndIf
+	F.ODBC.Connection!con.Close
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("Batch","VBatch")
+
+F.Data.DataTable.Close("Batch")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Get_Data_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.CallSub(ErrorMessage, "ErrorNumber", V.Ambient.ErrorNumber, "ErrorDescription", V.Ambient.ErrorDescription, "Subroutine", V.Ambient.CurrentSubroutine, "WRITE_LOG_FILE", True, "Project", "6311", "Task", "GCG_6311_AP_INV_BATCH", "Unattended", True, "ProjectTitle", "6311 Steel Vendor Invoice Integration", "Callback", "Exit")
+Function.Intrinsic.Control.EndIf
+Program.Sub.Get_Data.End
+
+Program.Sub.Get_Branch.Start
+F.Intrinsic.Control.SetErrorHandler("Get_Branch_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sSQL.Declare(String)
+V.Local.sRet.Declare(String)
+
+F.Intrinsic.String.Build("select RTRIM(BRANCH_ID) from V_ACCTG_BRANCH where CO_CODE = '{0}'", V.Caller.CompanyCode, V.Local.sSQL)
+
+F.ODBC.Connection!con.OpenCompanyConnection
+F.ODBC.Connection!Con.ExecuteAndReturn(V.Local.sSQL, V.Local.sRet)
+F.ODBC.Connection!con.Close
+
+'if no branch is set up, we use NA
+F.Intrinsic.Control.If(V.Ambient.ExecuteAndReturnEOF)
+	V.Local.sRet.Set("NA")
+F.Intrinsic.Control.Else
+	F.Intrinsic.Control.If(V.Local.sRet.Trim, =, "")
+		V.Local.sRet.Set("NA")
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+V.Global.sBranch.Set(V.Local.sRet.Trim)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Get_Branch_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.CallSub(ErrorMessage, "ErrorNumber", V.Ambient.ErrorNumber, "ErrorDescription", V.Ambient.ErrorDescription, "Subroutine", V.Ambient.CurrentSubroutine, "WRITE_LOG_FILE", True, "Project", "6311", "Task", "GCG_6311_AP_INV_BATCH", "Unattended", True, "ProjectTitle", "6311 Steel Vendor Invoice Integration", "Callback", "Exit")
+Function.Intrinsic.Control.EndIf
+Program.Sub.Get_Branch.End
+
+Program.Sub.Exit.Start
+F.Intrinsic.Control.SetErrorHandler("Exit_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Exit_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.Exit.End
+
+Program.Sub.Get_Batch.Start
+F.Intrinsic.Control.SetErrorHandler("Get_Batch_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sSql.Declare(String)
+V.Local.iRet.Declare(Long)
+V.Local.sRet.Declare(String)
+
+'V.Local.sSql.Set("Select top 1 Right(BATCH, 4) as Batch From GL_BATCH_LOG where Left(Batch,1)= 'P' order by Right(BATCH, 4) desc")
+'Function.ODBC.Connection!con.OpenCompanyConnection
+'Function.ODBC.Connection!con.ExecuteAndReturn(V.Local.ssql, V.Local.iRet)
+'Function.ODBC.Connection!con.Close
+
+'F.Intrinsic.Math.Add(V.Local.iRet, 1, V.Local.iRet)
+'F.Intrinsic.String.LPad(V.Local.iRet, "0", 4,V.Local.sRet)
+'F.Intrinsic.String.Build("P{0}", V.Local.sRet, V.Local.sRet)
+
+Function.ODBC.Connection!con.OpenCompanyConnection
+Function.ODBC.Connection!con.ExecuteAndReturn("Select Vouch_Num From AP_Vouch Where Vouch_Key = 'B'", V.Local.sRet)
+
+F.Intrinsic.Control.If(V.Local.sRet.Trim,<>,"")
+	F.Intrinsic.String.Split(V.Local.sRet,"P",V.Local.sRet)
+	F.Intrinsic.Math.Add(V.Local.sRet(1).Long, 1, V.Local.iRet)
+	F.Intrinsic.String.LPad(V.Local.iRet, "0", 4,V.Local.sRet)
+	F.Intrinsic.String.Build("P{0}", V.Local.sRet, V.Local.sRet)
+F.Intrinsic.Control.Else
+	V.Local.sRet.Set("P0001")
+	v.Local.iRet.Set(1)
+F.Intrinsic.Control.EndIf
+
+f.Intrinsic.String.Build("Update AP_Vouch Set Vouch_Num = '{0}' Where Vouch_Key = 'B'",V.Local.sRet,V.Local.sSql)
+F.ODBC.Connection!con.Execute(V.Local.sSql)
+
+F.Global.General.SaveOption(400299,"0001", "", "", "", "", V.Local.iRet, "")
+
+Function.ODBC.Connection!con.Close
+
+V.Global.sBatch.Set(V.Local.sRet.Trim)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Get_Batch_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.CallSub(ErrorMessage, "ErrorNumber", V.Ambient.ErrorNumber, "ErrorDescription", V.Ambient.ErrorDescription, "Subroutine", V.Ambient.CurrentSubroutine, "WRITE_LOG_FILE", True, "Project", "6311", "Task", "GCG_6311_AP_INV_BATCH", "Unattended", True, "ProjectTitle", "6311 Steel Vendor Invoice Integration", "Callback", "Exit")
+Function.Intrinsic.Control.EndIf
+Program.Sub.Get_Batch.End
+
+Program.Sub.ErrorMessage.Start
+F.Intrinsic.Control.SetErrorHandler("Get_Batch_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.bExists.Declare(Boolean)
+V.Local.sCallback.Declare(String)
+V.Static.bError.Declare(Boolean, False)
+V.Local.sDoubleNewLine.Declare(String)
+
+'make sure we aren't in an error loop
+F.Intrinsic.Control.If(V.Static.bError)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+V.Static.bError.Set(True)
+
+F.Intrinsic.String.Build("{6}{1}{1}Project: {0}{1}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}{1}{1}GAB Version: {5}", V.Caller.ScriptFile, V.Ambient.Newline, V.Args.Subroutine, V.Args.ErrorNumber, V.Args.ErrorDescription, V.Ambient.GABVersion, V.Ambient.Now, V.Local.sError)
+
+F.Intrinsic.Variable.ArgExists("UNATTENDED", V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists)
+	F.Intrinsic.Control.If(V.Args.UNATTENDED)
+		F.Intrinsic.Control.CallSub(UnattendedErrorMessage, "MESSAGE", V.Local.sError, "PROJECT", V.Args.PROJECT, "PROJECTTITLE", V.Args.PROJECTTITLE, "TASK", V.Args.Task)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Else
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Variable.ArgExists("WRITE_LOG_FILE", V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists)
+	F.Intrinsic.Control.If(V.Args.WRITE_LOG_FILE)
+		F.Intrinsic.String.Build("{0}{0}", V.Ambient.NewLine, V.Local.sDoubleNewLine)
+		F.Intrinsic.String.Replace(V.Local.sError, V.Local.sDoubleNewLine, V.Ambient.NewLine, V.Local.sError)
+		
+		F.Intrinsic.String.Build("Time: {0}{1}User: {2}{1}Windows User: {3}{1}Machine: {4}{1}PID: {5}{1}Terminal: {6}{1}Caller: {7}{1}Synchronous: {8}{1}Thread ID: {9}{1}Pervasive Client: {10}{1}GAB Version: {11}{1}GSS Version: {12}{1}Error: {13}{1}Error Description: {14}{1}Script: {15}{1}Subroutine: {16}", V.Ambient.Now, V.Ambient.NewLine, V.Caller.User, V.System.UserName, V.System.ComputerName, V.Ambient.PID, V.Caller.Terminal, V.Caller.Caller, V.Caller.Sync,  V.Ambient.ThreadID, V.Ambient.PervasiveClientVersion, V.Ambient.GABVersion, V.Caller.GSSVersion, V.Args.ErrorNumber, V.Args.ErrorDescription, V.Caller.ScriptFile, V.Args.Subroutine, V.Local.sError)
+		
+		F.Intrinsic.Control.CallSub(AddLogFile, "PROJECT", V.Args.Project, "TYPE", V.Args.Task, "MESSAGE", V.Local.sError)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Variable.ArgExists("Callback", V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists)
+	V.Local.sCallback.Set(V.Args.Callback.Trim)
+	F.Intrinsic.Control.CallSub(V.Local.sCallback)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.Label("Get_Batch_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+Program.Sub.ErrorMessage.End
+
+Program.Sub.UnattendedErrorMessage.Start
+'send a short error message, add the log
+'pass project ID, project title (for message box title), and error message
+F.Intrinsic.Control.SetErrorHandler("UnattendedErrorMessage_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sMessage.Declare(String)
+
+V.Local.sMessage.Set(V.Args.Message.Trim)
+F.Intrinsic.String.Replace(V.Local.sMessage, V.Ambient.NewLine, ", ", V.Local.sMessage)
+
+F.Intrinsic.UI.InvokeWaitDialog(V.Local.sMessage, V.Args.ProjectTitle)
+F.Intrinsic.UI.Sleep(10)
+F.Intrinsic.UI.CloseWaitDialog
+
+F.Intrinsic.Control.CallSub(AddLog, "Project", V.Args.Project, "TASK", V.Args.Task, "Message", V.Local.sMessage)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("UnattendedErrorMessage_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.CallSub(ErrorMessage, "ErrorNumber", V.Ambient.ErrorNumber, "ErrorDescription", V.Ambient.ErrorDescription, "Subroutine", V.Ambient.CurrentSubroutine, "WRITE_LOG_FILE", True, "Project", "6311", "Task", "GCG_6311_AP_INV_BATCH", "Unattended", True, "ProjectTitle", "6311 Steel Vendor Invoice Integration", "Callback", "Exit")
+F.Intrinsic.Control.EndIf
+Program.Sub.UnattendedErrorMessage.End
+
+Program.Sub.AddLog.Start
+'pass a project #, and a message
+'date and time will be automatically added
+'pass PROJECT (Folder)
+'TASK what to name log
+'MESSAGE (what to log)
+F.Intrinsic.Control.SetErrorHandler("AddLog_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sProject.Declare(String)
+V.Local.sMessage.Declare(String)
+V.Local.bExists.Declare(Boolean)
+V.Local.sPath.Declare(String)
+V.Local.sFile.Declare(String)
+V.Local.sContents.Declare(String)
+V.Local.sTask.Declare(String)
+
+V.Local.sProject.Set(V.Args.Project.Trim)
+V.Local.sMessage.Set(V.Args.Message.Trim)
+V.Local.sTask.Set(V.Args.Task)
+
+F.Intrinsic.String.Replace(V.Local.sMessage, V.Ambient.NewLine, ", ", V.Local.sMessage)
+
+F.Intrinsic.File.MakeFilenameFriendly(V.Local.sProject, V.Local.sProject)
+F.Intrinsic.String.Build("{0}\Custom\{1}\{2}\Log", V.Caller.GlobalDir, V.Local.sProject, V.Caller.CompanyCode, V.Local.sPath)
+F.Intrinsic.Control.CallSub(CheckDirectories, "DIRECTORIES", V.Local.sPath)
+
+F.Intrinsic.String.Build("{0}\{1}_Log.txt", V.Local.sPath, V.Local.sTask, V.Local.sFile)
+F.Intrinsic.File.Exists(V.Local.sFile, V.Local.bExists)
+F.Intrinsic.Control.If(V.Local.bExists.Not)
+	F.Intrinsic.String.Build("{0} {1}:{2}Log Start", V.Ambient.Date.FormatYYYY-MM-DD, V.Ambient.Time, V.Ambient.Tab, V.Local.sContents)
+	F.Intrinsic.File.String2File(V.Local.sFile, V.Local.sContents)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.Build("{0} {1}:{2}{3}", V.Ambient.Date.FormatYYYY-MM-DD, V.Ambient.Time, V.Ambient.Tab, V.Local.sMessage, V.Local.sContents)
+F.Intrinsic.File.Append2FileNewLine(V.Local.sFile, V.Local.sContents)
+
+F.Intrinsic.Control.Label("AddLog_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+Program.Sub.AddLog.End
+
+Program.Sub.AddLogFile.Start
+'pass a project #, and a message
+'date and time will be automatically added
+'pass PROJECT (Folder)
+'pass type (subfolder)
+'MESSAGE (what to log)
+
+F.Intrinsic.Control.Try
+
+V.Local.sProject.Declare(String)
+V.Local.bExists.Declare(Boolean)
+V.Local.sPath.Declare(String)
+V.Local.sFile.Declare(String)
+V.Local.sContents.Declare(String)
+V.Local.sName.Declare(String)
+
+F.Intrinsic.File.MakeFilenameFriendly(V.Args.Project, V.Local.sProject)
+F.Intrinsic.String.Build("{0}\Custom\{1}\{2}\Log\{3}\", V.Caller.GlobalDir, V.Local.sProject, V.Caller.CompanyCode, V.Args.Type, V.Local.sPath)
+F.Intrinsic.Control.CallSub(CheckDirectories, "DIRECTORIES", V.Local.sPath)
+
+F.Intrinsic.String.StripCharacters(V.Ambient.Now, V.Local.sName)
+
+F.Intrinsic.String.Build("{0}\{1}_Log.txt", V.Local.sPath, V.Local.sName, V.Local.sFile)
+F.Intrinsic.File.String2File(V.Local.sFile, V.Args.Message.Trim)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMessage, "ErrorNumber", V.Ambient.ErrorNumber, "ErrorDescription", V.Ambient.ErrorDescription, "Subroutine", V.Ambient.CurrentSubroutine, "WRITE_LOG_FILE", True, "Project", "6098", "Task", "GCG_6098_ImportBatches", "Unattended", True, "ProjectTitle", "6098 Concur Cloudsnap Integration", "Callback", "Exit")
+F.Intrinsic.Control.EndTry
+Program.Sub.AddLogFile.End
+
+Program.Sub.CheckDirectories.Start
+'check if the given import directories exist
+'create them if they don't
+'pass directories delimited with *!*
+
+F.Intrinsic.Control.Try
+
+V.Local.sDirectories.Declare(String)
+V.Local.sPath.Declare(String)
+V.Local.bExists.Declare(Boolean)
+V.Local.iCounter.Declare(Long)
+
+V.Local.sDirectories.Set(V.Args.Directories)
+F.Intrinsic.String.Split(V.Local.sDirectories, "*!*", V.Local.sDirectories)
+
+F.Intrinsic.Control.For(V.Local.iCounter, 0, V.Local.sDirectories.UBound, 1)
+	V.Local.sPath.Set(V.Local.sDirectories(V.Local.iCounter))
+	F.Intrinsic.File.DirExists(V.Local.sPath, V.Local.bExists)
+	F.Intrinsic.Control.If(V.Local.bExists.Not)
+		F.Intrinsic.File.CreateDir(V.Local.sPath)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iCounter)
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMessage, "ErrorNumber", V.Ambient.ErrorNumber, "ErrorDescription", V.Ambient.ErrorDescription, "Subroutine", V.Ambient.CurrentSubroutine, "WRITE_LOG_FILE", True, "Project", "6311", "Task", "GCG_6311_AP_INV_BATCH", "Unattended", True, "ProjectTitle", "6311 Steel Vendor Invoice Integration", "Callback", "Exit")
+F.Intrinsic.Control.EndTry
+Program.Sub.CheckDirectories.End
+
+Program.Sub.Check_View.Start
+F.Intrinsic.Control.Try
+
+V.Local.bRet.Declare(Boolean,False)
+V.Local.sSql.Declare(String,"")
+
+F.ODBC.Connection!con.OpenCompanyConnection
+
+F.ODBC.Connection!Con.TableExists("V_GCG_6311_PO_RECPTS",V.Local.bRet)
+	
+F.Intrinsic.Control.If(V.Local.bRet,=,False)
+	V.Local.sSql.Set("CREATE VIEW V_GCG_6311_PO_RECPTS AS Select B.RECEIVER_NO, A.VENDOR, A.PURCHASE_ORDER, A.RECORD_NO as PO_LINE, A.PART, A.DESCRIPTION as PART_DESCRIPTION, A.QTY_ORDER as PO_LINE_ORDER_QTY, IF(B.QTY_RECEIVED is null,0.00,B.QTY_RECEIVED) as QTY_RECEIVED, IF(B.QTY_RECEIVED is null,0.00,IF(A.UM_PURCHASING <> A.UM_INVENTORY,D.FACTOR_CONVERSION * B.QTY_RECEIVED,B.QTY_RECEIVED)) as INV_QTY_RECEIVED, IF(QTY_INVOICED IS NULL,0.00,QTY_INVOICED) AS QTY_INVOICED, IF(A.QTY_ORDER - A.QTY_RECEIVED < 0,0.00,A.QTY_ORDER - A.QTY_RECEIVED) as OPEN_QTY, A.COST as UNIT_PRICE, B.DATE_RECEIVED, IF(A.FLAG_RECV_CLOSE = 'Y','3','1') as STATUS, IF(B.GL_ACCOUNT IS NULL,A.GL_ACCOUNT_LINE,B.GL_ACCOUNT) as EXPENSE_ACCOUNT, C.NORMAL_GL_ACCOUNT as PAYABLE_ACCOUNT, IF(B.TAXABLE IS NULL,CAST(0 AS BIT),B.TAXABLE) AS TAXABLE, A.DATE_DUE_LINE From V_PO_LINES A LEFT Join V_PO_RECEIVER B on a.Purchase_Order = b.Purchase_Order and B.PO_Line4 = A.Record_no Left Join V_Vendor_Master C on A.Vendor = C.Vendor Left Join V_Inventory_Mstr D on Replace(B.Part,'*','') = D.Part and B.Location = D.Location;")
+	F.ODBC.Connection!Con.Execute(V.Local.sSql)
+F.Intrinsic.Control.EndIf
+
+F.ODBC.Connection!Con.Close
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(ErrorMessage, "ErrorNumber", V.Ambient.ErrorNumber, "ErrorDescription", V.Ambient.ErrorDescription, "Subroutine", V.Ambient.CurrentSubroutine, "WRITE_LOG_FILE", True, "Project", "6311", "Task", "GCG_6311_AP_INV_BATCH", "Unattended", True, "ProjectTitle", "6311 Steel Vendor Invoice Integration", "Callback", "Exit")
+F.Intrinsic.Control.EndTry
+Program.Sub.Check_View.End
